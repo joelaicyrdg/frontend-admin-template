@@ -1,0 +1,117 @@
+# This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: AOM Frontend Admin Template CI
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  test:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        #        node-version: [10.x, 12.x, 14.x]
+        node-version: [12.x, 14.x]
+    # services:
+    #   mongodb:
+    #     image: mongo:4.0
+    #     env:
+    #       MONGO_INITDB_ROOT_USERNAME: root
+    #       MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGOBD_ADMIN_PASSWORD }}
+    #       MONGOBD_ADMIN_PASSWORD: ${{ secrets.MONGOBD_DB_NAME }}
+    #     ports:
+    #       - 27017:27017
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v2
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: ~/.npm
+          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+            ${{ runner.OS }}-
+      - name: Create envfile
+        uses: SpicyPizza/create-envfile@v1
+        with:
+          envkey_DEBUG: true
+          file_name: .env
+          envkey_NODE_ENV: ci
+          envkey_AOM_SERVICE_NODEJS_VERSION: ${{ secrets.AOM_SERVICE_NODEJS_VERSION }}
+          envkey_AOM_SERVICE_NAME: ${{ secrets.AOM_SERVICE_NAME }}
+          # envkey_AOM_SERVICE_API_HOST: ${{ secrets.AOM_SERVICE_API_HOST }}
+          # envkey_AOM_SERVICE_API_PORT: ${{ secrets.AOM_SERVICE_API_PORT }}
+          # envkey_AOM_NATS_STREAMING_CLUSTER_ID: ${{ secrets.AOM_NATS_STREAMING_CLUSTER_ID }}
+          # envkey_AOM_NATS_STREAMING_HOST: ${{ secrets.AOM_NATS_STREAMING_HOST }}
+          # envkey_AOM_NATS_STREAMING_PORT: ${{ secrets.AOM_NATS_STREAMING_PORT }}
+          # envkey_SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          # envkey_MONGOBD_ADMIN_PASSWORD: ${{ secrets.MONGOBD_ADMIN_PASSWORD }}
+          # envkey_MONGOBD_DB_NAME: ${{ secrets.MONGOBD_DB_NAME }}
+          # envkey_MONGODB_HOST: ${{ secrets.MONGODB_HOST }}
+
+      - name: Install
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm config set //npm.pkg.github.com/:_authToken=${NPM_TOKEN}
+          npm ci
+
+      # Run tests
+      - name: Test
+        run: npm run test
+
+      # - name: e2e Test
+      #   run: npm run test:e2e
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: self-hosted
+    needs: [test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v2
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: ~/.npm
+          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+            ${{ runner.OS }}-
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Install
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm config set //npm.pkg.github.com/:_authToken=${NPM_TOKEN}
+          npm ci
+
+      - name: Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HUSKY: 0
