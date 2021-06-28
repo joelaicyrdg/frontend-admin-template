@@ -118,9 +118,8 @@
   },
   "lint-staged": {
     "**/*.ts?(x)": "bash -c tsc -p tsconfig.json --noEmit",
-    "{src,apps,libs,test}/**/*.ts": "eslint --fix",
     "*.{js,jsx,vue,ts,tsx}": "vue-cli-service lint",
-    "*.{js,jsx,ts, tsx,md,html,css}": "prettier --write"
+    "*.{js,jsx,vue,ts,tsx,md,html,css}": "prettier --write"
   },
   "config": {
     "commitizen": {
